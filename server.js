@@ -1,137 +1,134 @@
 import express from 'express';
-import pg from 'pg';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
+import path from 'path';
 
 const app = express();
 app.use(express.json());
 
-// Enable CORS so Claude's internet client can connect cleanly
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-
-// Cloud Database Connection Pool
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:Tq6zyWzmfuQFnOCb@db.kljclvaqsnooaxoayqnw.supabase.co:5432/postgres"
-});
-
-// 1. Universal MCP Web Discovery Manifest (Tells Claude what tools exist over the web)
-app.get('/.well-known/mcp', (req, res) => {
-  res.json({
-    mcpVersion: "2026-07-28",
-    capabilities: { tools: {} },
-    tools: [
-      {
-        name: "save_weekly_schedule",
-        description: "Saves a generated weekly calendar schedule containing prioritized tasks, mandatory 10-min water breaks every hour, buffer blocks, and lunch.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            time_slots: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  day: { type: "string", enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] },
-                  start_time: { type: "string" },
-                  end_time: { type: "string" },
-                  title: { type: "string" },
-                  type: { type: "string", enum: ["task", "break", "buffer", "lunch"] },
-                  importance: { type: "string", enum: ["v imp", "imp", "little imp", "none"] }
-                },
-                required: ["day", "start_time", "end_time", "title", "type", "importance"]
-              }
-            }
-          },
-          required: ["time_slots"]
-        }
-      }
-    ]
+// Initialize Local SQLite Database for simple reviewer cloning
+let db;
+(async () => {
+  db = await open({
+    filename: './schedule.db',
+    driver: sqlite3.Database
   });
-});
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS calendar_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      day TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL,
+      importance TEXT DEFAULT 'Normal'
+    )
+  `);
+})();
 
-// 2. Direct Web Tool Execution Route
-app.post('/api/save-weekly-schedule', async (req, res) => {
-  try {
-    const { time_slots } = req.body;
-    if (!time_slots || !Array.isArray(time_slots)) {
-      return res.status(400).json({ error: "Invalid schedule format" });
-    }
-    
-    await pool.query("DELETE FROM calendar_tasks");
-    for (const slot of time_slots) {
-      await pool.query(
-        "INSERT INTO calendar_tasks (day, start_time, end_time, title, type, importance) VALUES ($1, $2, $3, $4, $5, $6)",
-        [slot.day, slot.start_time, slot.end_time, slot.title, slot.type, slot.importance]
-      );
-    }
-    res.json({ success: true, message: `Scheduled ${time_slots.length} slots successfully.` });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 3. API: Fetch schedule for the Frontend Grid Interface
+// API: Fetch current schedule data grouped by day
 app.get('/api/schedule', async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM calendar_tasks ORDER BY day, start_time ASC");
-    res.json(result.rows);
+    const tasks = await db.all("SELECT * FROM calendar_tasks ORDER BY day, start_time ASC");
+    res.json(tasks);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 4. Serve the Colorful Editable UI Calendar Grid Dashboard
+// Serve the Aesthetic Minimalist Beige Calendar Dashboard Interface
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Weekly Smart Planner</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Weekly Outlook &bull; ChronoPlan</title>
       <script src="https://tailwindcss.com"></script>
+      <link rel="preconnect" href="https://googleapis.com">
+      <link rel="preconnect" href="https://gstatic.com" crossorigin>
+      <link href="https://googleapis.com/css2?family=Cinzel:wght@400;600&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f7f4ef; }
+        .serif-title { font-family: 'Cinzel', serif; letter-spacing: 0.05em; }
+      </style>
     </head>
-    <body class="bg-slate-50 text-slate-800 min-h-screen font-sans p-8">
-      <nav class="bg-white border border-slate-200 py-4 px-8 rounded-xl flex justify-between items-center shadow-xs mb-8 max-w-7xl mx-auto">
-        <div class="flex items-center space-x-3">
-          <span class="text-xl font-bold text-emerald-600">📅 ChronoPlan Web-MCP</span>
+    <body class="text-stone-700 min-h-screen">
+      
+      <!-- Pinterest-Aesthetic Top Navigation Header -->
+      <nav class="max-w-7xl mx-auto py-8 px-6 flex justify-between items-center border-b border-stone-200/60">
+        <div class="flex flex-col">
+          <span class="serif-title text-xl font-medium tracking-wider text-stone-800">ChronoPlan</span>
+          <span class="text-[11px] text-stone-400 font-medium uppercase tracking-widest mt-0.5">The Weekly Routine Engine</span>
         </div>
-        <button onclick="fetchSchedule()" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-xs">🔄 Sync Live Timeline</button>
+        <button onclick="fetchSchedule()" class="px-5 py-2.5 text-xs bg-stone-800 hover:bg-stone-900 text-stone-100 rounded-full transition-all duration-300 font-medium tracking-wider uppercase shadow-xs">
+          🔄 Sync Timeline
+        </button>
       </nav>
-      <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-6" id="calendar-grid"></main>
+
+      <!-- Main Layout Body Box -->
+      <main class="max-w-7xl mx-auto p-6 mt-4">
+        <div class="mb-8">
+          <h1 class="serif-title text-2xl font-medium text-stone-800">Weekly Outlook</h1>
+          <p class="text-xs text-stone-400 font-medium mt-1">A curated space mapping out your priorities, targets, and breaks balance frames.</p>
+        </div>
+
+        <!-- The 5-Day Structural Dashboard Columns Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6" id="calendar-grid"></div>
+      </main>
+
       <script>
         const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
         async function fetchSchedule() {
           const res = await fetch('/api/schedule');
           const tasks = await res.json();
           const grid = document.getElementById('calendar-grid');
           grid.innerHTML = '';
+
           days.forEach(day => {
             const dayTasks = tasks.filter(t => t.day === day);
-            let html = \`<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-xs min-h-[450px]">
-              <h3 class="font-bold text-slate-400 border-b pb-2 mb-3 text-center text-xs tracking-wide uppercase">\${day}</h3><div class="space-y-3">\`;
+            let dayHtml = \`
+              <div class="bg-white/80 border border-stone-200/50 rounded-2xl p-5 shadow-xs backdrop-blur-xs min-h-[460px] flex flex-col">
+                <h3 class="serif-title font-medium text-stone-800 border-b border-stone-100 pb-2 mb-4 text-center tracking-wide text-xs uppercase">\${day}</h3>
+                <div class="space-y-3.5 flex-1">
+            \`;
+
             if(dayTasks.length === 0) {
-              html += \`<p class="text-xs text-slate-400 text-center py-12">No tasks mapped yet.</p>\`;
+              dayHtml += \`
+                <div class="flex flex-col items-center justify-center py-20 text-stone-400">
+                  <span class="text-lg">🌿</span>
+                  <p class="text-[11px] font-medium tracking-wide mt-2 text-center">Quiet day ahead</p>
+                </div>
+              \`;
             } else {
               dayTasks.forEach(task => {
-                let bg = "bg-emerald-50 border-emerald-200 text-emerald-900";
-                if(task.type === 'lunch') bg = "bg-amber-400 border-amber-500 text-amber-950 font-bold text-center";
-                if(task.type === 'break') bg = "bg-sky-400 border-sky-500 text-white font-semibold text-center";
-                if(task.type === 'buffer') bg = "bg-indigo-50 border-indigo-300 text-indigo-800 border-dashed";
-                if(task.importance === 'v imp') bg = "bg-gradient-to-br from-rose-500 to-pink-600 border-rose-600 text-white font-bold shadow-sm";
-                html += \`<div class="p-3 border rounded-lg text-xs \${bg}">
-                  <div class="font-mono text-[10px] opacity-70 mb-1">\${task.start_time} - \${task.end_time}</div>
-                  <div class="font-medium">\${task.title}</div>
-                </div>\`;
+                // Pinterest Earthy Soft Tones Architecture Palette Styling
+                let bgClass = "bg-stone-50 border-stone-200/60 text-stone-700"; // Tasks: Soft Warm Clay
+                if(task.type === 'lunch') bgClass = "bg-[#ebdccb] border-[#decbb7] text-stone-800 font-medium"; // Lunch: Toasted Oatmeal Cream
+                if(task.type === 'break') bgClass = "bg-[#dbe1d9] border-[#cbd3c7] text-stone-700 text-[11px] text-center italic tracking-wide"; // Breaks: Muted Sage Leaf Green
+                if(task.type === 'buffer') bgClass = "bg-stone-50 border-stone-300 border-dashed text-stone-500"; // Buffer Blocks: Soft Flax Linen
+                if(task.importance === 'v imp') bgClass = "bg-[#d4b0a2]/50 border-[#c49b88] text-stone-900 font-semibold ring-1 ring-[#decbb7]"; // Very Important: Soft Terracotta Rose
+
+                dayHtml += \`
+                  <div class="p-3.5 border rounded-xl transition-all duration-300 shadow-2xs hover:shadow-xs \${bgClass}">
+                    <div class="font-mono text-[10px] text-stone-400 mb-1 flex items-center space-x-1 font-medium">
+                      <span>\${task.start_time}</span>
+                      <span class="opacity-60">-</span>
+                      <span>\${task.end_time}</span>
+                    </div>
+                    <div class="text-xs leading-relaxed font-medium tracking-wide text-stone-800">\${task.title}</div>
+                  </div>
+                \`;
               });
             }
-            html += '</div></div>';
-            grid.innerHTML += html;
+
+            dayHtml += \`</div></div>\`;
+            grid.innerHTML += dayHtml;
           });
         }
+
         window.onload = fetchSchedule;
       </script>
     </body>
@@ -139,5 +136,5 @@ app.get('/', (req, res) => {
   `);
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, "0.0.0.0", () => console.log(`App online on port ${PORT}`));
+const PORT = 3000;
+app.listen(PORT, () => console.log(`🚀 Aesthetic Workspace ready at http://localhost:${PORT}`));
