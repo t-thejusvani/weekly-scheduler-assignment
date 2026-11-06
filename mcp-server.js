@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import express from "express";
 import pg from "pg";
 
 // Initialize PostgreSQL Cloud Database Connection
@@ -76,6 +77,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
-console.error("MCP Scheduler Server online via cloud connection!");
+// Setup Express Web Server for Render
+const app = express();
+const port = process.env.PORT || 10000;
+
+let transport;
+
+// SSE endpoint to establish connection with Claude
+app.get("/sse", async (req, res) => {
+  transport = new SSEServerTransport("/messages", res);
+  await server.connect(transport);
+});
+
+// Messages endpoint to handle tool execution calls from Claude
+app.post("/messages", async (req, res) => {
+  if (transport) {
+    await transport.handlePostMessage(req, res);
+  } else {
+    res.status(400).send("No active SSE session found.");
+  }
+});
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`MCP Scheduler Server online on port ${port} via cloud connection!`);
+});
