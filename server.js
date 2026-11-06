@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { 
@@ -6,8 +8,14 @@ import {
     CallToolRequestSchema 
 } from '@modelcontextprotocol/sdk/types.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 app.use(express.json());
+
+// Serve your frontend static UI from the 'public' folder
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Store latest schedule
 let currentSchedule = {
@@ -20,7 +28,7 @@ const mcpServer = new Server(
     { capabilities: { tools: {} } }
 );
 
-// Register Tool List Handler using proper Schema
+// Register Tool List Handler
 mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [{
         name: "update_weekly_schedule",
@@ -35,7 +43,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
     }]
 }));
 
-// Register Tool Call Handler using proper Schema
+// Register Tool Call Handler
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "update_weekly_schedule") {
         currentSchedule = request.params.arguments.schedule;
@@ -63,5 +71,5 @@ app.get('/api/schedule', (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`FocusFlow MCP Server running on port ${PORT}`);
+    console.log(`FocusFlow Server running on port ${PORT}`);
 });
