@@ -1,11 +1,15 @@
 import express from 'express';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { 
+    ListToolsRequestSchema, 
+    CallToolRequestSchema 
+} from '@modelcontextprotocol/sdk/types.js';
 
 const app = express();
 app.use(express.json());
 
-// Store latest tasks in-memory or sync them
+// Store latest schedule
 let currentSchedule = {
     "Monday": [{ id: 1, title: "Review Assignment", priority: "v imp", completed: false }]
 };
@@ -16,8 +20,8 @@ const mcpServer = new Server(
     { capabilities: { tools: {} } }
 );
 
-// Define tool for Claude to call
-mcpServer.setRequestHandler("tools/list", async () => ({
+// Register Tool List Handler using proper Schema
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [{
         name: "update_weekly_schedule",
         description: "Push structured weekly tasks and work blocks into the FocusFlow app",
@@ -31,7 +35,8 @@ mcpServer.setRequestHandler("tools/list", async () => ({
     }]
 }));
 
-mcpServer.setRequestHandler("tools/call", async (request) => {
+// Register Tool Call Handler using proper Schema
+mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "update_weekly_schedule") {
         currentSchedule = request.params.arguments.schedule;
         return { content: [{ type: "text", text: "Schedule successfully updated!" }] };
@@ -51,7 +56,7 @@ app.post('/messages', async (req, res) => {
     }
 });
 
-// Endpoint for your frontend app to fetch the schedule
+// Endpoint for your app to fetch the schedule
 app.get('/api/schedule', (req, res) => {
     res.json(currentSchedule);
 });
