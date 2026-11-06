@@ -1,21 +1,20 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import express from "express";
-import pg from "pg";
+import sqlite3 from "sqlite3";
+import { open } from "sqlite";
 
-// Initialize PostgreSQL Cloud Database Connection
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:Tq6zyWzmfuQFnOCb@db.kljclvaqsnooaxoayqnw.supabase.co:5432/postgres"
+// Open the local standalone SQLite database file matching server.js
+const db = await open({
+  filename: "./schedule.db",
+  driver: sqlite3.Database
 });
 
-// Initialize the MCP Server
 const server = new Server(
   { name: "weekly-scheduler-server", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
 
-// Define the Tool Schema for Claude
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
@@ -49,7 +48,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// Handle Execution Requests
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name !== "save_weekly_schedule") {
     throw new Error(`Unknown tool: ${request.params.name}`);
@@ -58,46 +56,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const { time_slots } = request.params.arguments;
     
-    // Clear out old data in the cloud table
-    await pool.query("DELETE FROM calendar_tasks");
+    // Clear out old data matching user refresh requests
+    await db.run("DELETE FROM calendar_tasks");
 
-    // Insert each new slot into the cloud database
     for (const slot of time_slots) {
-      await pool.query(
-        "INSERT INTO calendar_tasks (day, start_time, end_time, title, type, importance) VALUES ($1, $2, $3, $4, $5, $6)",
+      await db.run(
+        "INSERT INTO calendar_tasks (day, start_time, end_time, title, type, importance) VALUES (?, ?, ?, ?, ?, ?)",
         [slot.day, slot.start_time, slot.end_time, slot.title, slot.type, slot.importance]
       );
     }
 
     return {
-      content: [{ type: "text", text: `Successfully built and scheduled ${time_slots.length} time blocks into your cloud calendar app dashboard.` }]
+      content: [{ type: "text", text: `Successfully built and saved ${time_slots.length} time blocks into your aesthetic local dashboard.` }]
     };
   } catch (error) {
     return { content: [{ type: "text", text: `Database error: ${error.message}` }], isError: true };
   }
 });
 
-// Setup Express Web Server for Render
-const app = express();
-const port = process.env.PORT || 10000;
-
-let transport;
-
-// SSE endpoint to establish connection with Claude
-app.get("/sse", async (req, res) => {
-  transport = new SSEServerTransport("/messages", res);
-  await server.connect(transport);
-});
-
-// Messages endpoint to handle tool execution calls from Claude
-app.post("/messages", async (req, res) => {
-  if (transport) {
-    await transport.handlePostMessage(req, res);
-  } else {
-    res.status(400).send("No active SSE session found.");
-  }
-});
-
-app.listen(port, "0.0.0.0", () => {
-  console.log(`MCP Scheduler Server online on port ${port} via cloud connection!`);
-});
+const transport = new StdioServerTransport();
+await server.connect(transport);
+console.error("MCP Scheduler Server running locally!");
