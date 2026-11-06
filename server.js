@@ -1,36 +1,48 @@
 import express from 'express';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
+import pg from 'pg';
 
 const app = express();
 app.use(express.json());
 
-// Initialize Local SQLite Database for simple reviewer cloning
-let db;
-(async () => {
-  db = await open({
-    filename: './schedule.db',
-    driver: sqlite3.Database
-  });
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS calendar_tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      day TEXT NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      title TEXT NOT NULL,
-      type TEXT NOT NULL,
-      importance TEXT DEFAULT 'Normal'
-    )
-  `);
-})();
+// Enable CORS so external applications can interface cleanly over the web
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
 
-// API: Fetch current schedule data grouped by day
+// Cloud Database Connection Pool using your credentials directly
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || "postgresql://postgres:Tq6zyWzmfuQFnOCb@db.kljclvaqsnooaxoayqnw.supabase.co:5432/postgres"
+});
+
+// Direct Web Tool Route matching your cloud payload schema
+app.post('/api/save-weekly-schedule', async (req, res) => {
+  try {
+    const { time_slots } = req.body;
+    if (!time_slots || !Array.isArray(time_slots)) {
+      return res.status(400).json({ error: "Invalid schedule format" });
+    }
+    await pool.query("DELETE FROM calendar_tasks");
+    for (const slot of time_slots) {
+      await pool.query(
+        "INSERT INTO calendar_tasks (day, start_time, end_time, title, type, importance) VALUES ($1, $2, $3, $4, $5, $6)",
+        [slot.day, slot.start_time, slot.end_time, slot.title, slot.type, slot.importance]
+      );
+    }
+    res.json({ success: true, message: `Scheduled ${time_slots.length} slots successfully.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Fetch schedule for the Frontend Grid Interface
 app.get('/api/schedule', async (req, res) => {
   try {
-    const tasks = await db.all("SELECT * FROM calendar_tasks ORDER BY day, start_time ASC");
-    res.json(tasks);
+    const result = await pool.query("SELECT * FROM calendar_tasks ORDER BY day, start_time ASC");
+    res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -136,5 +148,5 @@ app.get('/', (req, res) => {
   `);
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Aesthetic Workspace ready at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, "0.0.0.0", () => console.log(`Aesthetic web server online on port ${PORT}`));
