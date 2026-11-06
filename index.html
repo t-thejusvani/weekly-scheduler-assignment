@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Focus & Work-Block Planner</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Custom Scrollbar for smooth visual appeal */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.5);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(107, 114, 128, 0.8);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200">
+
+  <!-- Header / Navigation -->
+  <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur border-b border-slate-200 dark:border-slate-700 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600 text-white rounded-xl shadow-md">
+          <i class="fa-solid fa-calendar-check text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">Focus Blocks</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Weekly Task & Break Planner</p>
+        </div>
+      </div>
+
+      <!-- Header Quick Actions -->
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <button id="themeToggleBtn" onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition" title="Toggle Light/Dark Theme">
+          <i id="themeIcon" class="fa-solid fa-moon"></i>
+        </button>
+        <button onclick="copySummaryToClipboard()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition flex items-center space-x-1.5">
+          <i class="fa-regular fa-copy"></i>
+          <span class="hidden sm:inline">Copy Plan</span>
+        </button>
+        <button onclick="exportData()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition flex items-center space-x-1">
+          <i class="fa-solid fa-download"></i>
+          <span class="hidden sm:inline">Export</span>
+        </button>
+        <button onclick="triggerImport()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition flex items-center space-x-1">
+          <i class="fa-solid fa-upload"></i>
+          <span class="hidden sm:inline">Import</span>
+        </button>
+        <input type="file" id="importFileInput" class="hidden" accept=".json" onchange="importData(event)">
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Banner / Toast Message -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 pointer-events-none">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+    <span id="toastMsg" class="text-sm font-medium">Notification message</span>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Top Dump Section: Claude AI Task Import & Controls -->
+    <section class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 transition">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+        <div>
+          <h2 class="text-base font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i>
+            <span>Claude Raw Task Dump & Auto-Scheduler</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Paste raw text tasks output from Claude. Mention levels like <i>"v imp"</i>, <i>"imp"</i>, or <i>"normal"</i>.
+          </p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="loadSampleDump()" class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1">
+            Load Sample Dump
+          </button>
+          <button onclick="parseAndPlan()" class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-md transition flex items-center space-x-2">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Parse & Auto-Plan Week</span>
+          </button>
+        </div>
+      </div>
+
+      <textarea id="taskDumpInput" rows="3" class="w-full p-3 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition placeholder-slate-400" placeholder="e.g. 
+- Draft Q3 Product Roadmap (v imp)
+- Review engineering PRs (imp)
+- Team sync & 1-on-1s (normal)
+- Finalize budget report (v imp)"></textarea>
+    </section>
+
+    <!-- Filters & Dashboard Toolbar -->
+    <section class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+      
+      <!-- Priority Filter Tabs -->
+      <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+        <button onclick="setPriorityFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 text-xs font-semibold rounded-lg transition bg-white dark:bg-slate-800 shadow-sm text-indigo-600 dark:text-indigo-400">
+          All Tasks
+        </button>
+        <button onclick="setPriorityFilter('vimp')" id="filter-vimp" class="filter-btn px-3 py-1.5 text-xs font-semibold rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+          <span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1.5"></span>Very Imp
+        </button>
+        <button onclick="setPriorityFilter('imp')" id="filter-imp" class="filter-btn px-3 py-1.5 text-xs font-semibold rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+          <span class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span>Important
+        </button>
+        <button onclick="setPriorityFilter('normal')" id="filter-normal" class="filter-btn px-3 py-1.5 text-xs font-semibold rounded-lg transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+          <span class="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1.5"></span>Normal
+        </button>
+      </div>
+
+      <!-- Active Stats & Actions -->
+      <div class="flex items-center justify-between w-full sm:w-auto space-x-4">
+        <div class="flex items-center space-x-3 text-xs font-medium text-slate-500 dark:text-slate-400">
+          <span>Total: <strong id="statTotal" class="text-slate-800 dark:text-slate-200">0</strong></span>
+          <span>•</span>
+          <span>Done: <strong id="statDone" class="text-emerald-600 dark:text-emerald-400">0</strong></span>
+        </div>
+        
+        <button onclick="clearAllSchedule()" class="text-xs font-medium text-rose-500 hover:text-rose-600 hover:underline">
+          <i class="fa-regular fa-trash-can mr-1"></i>Clear Week
+        </button>
+      </div>
+    </section>
+
+    <!-- Days View Grid -->
+    <div id="daysGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+      <!-- Generated dynamically by JS -->
+    </div>
+
+  </main>
+
+  <!-- Modal for Adding / Editing Task -->
+  <div id="taskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 transform scale-95 transition-transform duration-200" id="modalContainer">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="modalTitle" class="text-base font-bold">Add New Task</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="taskForm" onsubmit="saveTaskForm(event)" class="space-y-4">
+        <input type="hidden" id="taskDayInput">
+        <input type="hidden" id="taskBlockInput">
+        <input type="hidden" id="taskSlotInput">
+        <input type="hidden" id="taskIdInput">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Task Title / Description</label>
+          <input type="text" id="taskTitleInput" required class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Priority Level</label>
+          <select id="taskPriorityInput" class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <option value="vimp">🔥 Very Important</option>
+            <option value="imp">⚡ Important</option>
+            <option value="normal" selected>📌 Normal</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition">Cancel</button>
+          <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Application Script -->
+  <script>
+    // App State Configuration
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const BLOCKS = [
+      { id: 'b1', name: 'Block 1 (09:00 - 11:00)', slot1: '09:00 - 10:00', water: '10:00 - 10:10 (10m Break)', slot2: '10:10 - 11:00' },
+      { id: 'b2', name: 'Block 2 (11:10 - 13:10)', slot1: '11:10 - 12:10', water: '12:10 - 12:20 (10m Break)', slot2: '12:20 - 13:10' },
+      { id: 'b3', name: 'Block 3 (14:00 - 16:00)', slot1: '14:00 - 15:00', water: '15:00 - 15:10 (10m Break)', slot2: '15:10 - 16:00' },
+      { id: 'b4', name: 'Block 4 (16:10 - 18:10)', slot1: '16:10 - 17:10', water: '17:10 - 17:20 (10m Break)', slot2: '17:20 - 18:10' }
+    ];
+
+    let scheduleData = {};
+    let activeFilter = 'all';
+
+    // Initialization
+    window.onload = () => {
+      initScheduleData();
+      loadFromStorage();
+      renderSchedule();
+      setupDragAndDrop();
+    };
+
+    function initScheduleData() {
+      DAYS.forEach(day => {
+        if (!scheduleData[day]) {
+          scheduleData[day] = {};
+          BLOCKS.forEach(block => {
+            scheduleData[day][block.id] = {
+              slot1: [],
+              slot2: []
+            };
+          });
+        }
+      });
+    }
+
+    // Storage Management
+    function saveToStorage() {
+      localStorage.setItem('focus_blocks_schedule', JSON.stringify(scheduleData));
+      updateStats();
+    }
+
+    function loadFromStorage() {
+      const saved = localStorage.getItem('focus_blocks_schedule');
+      if (saved) {
+        try {
+          scheduleData = JSON.parse(saved);
+        } catch (e) {
+          console.error('Error loading schedule:', e);
+          initScheduleData();
+        }
+      }
+    }
+
+    // Task Dump Parsing Logic
+    function parseAndPlan() {
+      const input = document.getElementById('taskDumpInput').value.trim();
+      if (!input) {
+        showToast('Please paste or write tasks in the text box first.', 'warning');
+        return;
+      }
+
+      const lines = input.split('\n').filter(line => line.trim().length > 0);
+      const parsedTasks = [];
+
+      lines.forEach(line => {
+        let cleanText = line.replace(/^[\s\-\*\d\.\>]+/, '').trim();
+        if (!cleanText) return;
+
+        let priority = 'normal';
+        const lower = cleanText.toLowerCase();
+
+        if (lower.includes('v imp') || lower.includes('very important') || lower.includes('critical') || lower.includes('p0') || lower.includes('high')) {
+          priority = 'vimp';
+          cleanText = cleanText.replace(/[\(\[\{]?(v imp|very important|critical|p0|high)[\)\]\}]?/gi, '').trim();
+        } else if (lower.includes('imp') || lower.includes('important') || lower.includes('p1') || lower.includes('medium')) {
+          priority = 'imp';
+          cleanText = cleanText.replace(/[\(\[\{]?(imp|important|p1|medium)[\)\]\}]?/gi, '').trim();
+        } else {
+          cleanText = cleanText.replace(/[\(\[\{]?(normal|p2|low)[\)\]\}]?/gi, '').trim();
+        }
+
+        parsedTasks.push({
+          id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          title: cleanText || 'Untitled Task',
+          priority: priority,
+          completed: false
+        });
+      });
+
+      // Sort by priority: Very Important -> Important -> Normal
+      const priorityOrder = { vimp: 1, imp: 2, normal: 3 };
+      parsedTasks.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+      // Distribute tasks evenly across Days and Slots
+      let taskIdx = 0;
+      DAYS.forEach(day => {
+        BLOCKS.forEach(block => {
+          ['slot1', 'slot2'].forEach(slot => {
+            if (taskIdx < parsedTasks.length) {
+              scheduleData[day][block.id][slot].push(parsedTasks[taskIdx]);
+              taskIdx++;
+            }
+          });
+        });
+      });
+
+      saveToStorage();
+      renderSchedule();
+      showToast(`Parsed and scheduled ${parsedTasks.length} tasks!`, 'success');
+    }
+
+    function loadSampleDump() {
+      document.getElementById('taskDumpInput').value = 
+`- Draft Q4 Product Strategy Document (v imp)
+- Review core API refactoring pull request (imp)
+- Weekly team alignment & status check (normal)
+- Fix production auth token expiration bug (v imp)
+- Prepare slides for client demo (imp)
+- Update Jira backlog tickets (normal)
+- Conduct performance 1-on-1s (imp)
+- Finalize monthly server infrastructure cost report (v imp)`;
+    }
+
+    // Render Functionality
+    function renderSchedule() {
+      const grid = document.getElementById('daysGrid');
+      grid.innerHTML = '';
+
+      DAYS.forEach(day => {
+        const dayCol = document.createElement('div');
+        dayCol.className = 'bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col space-y-4';
+
+        // Day Header
+        dayCol.innerHTML = `
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+            <h3 class="font-bold text-sm tracking-wide text-indigo-600 dark:text-indigo-400">${day}</h3>
+            <span class="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500">
+              ${countDayTasks(day)} tasks
+            </span>
+          </div>
+        `;
+
+        const blocksContainer = document.createElement('div');
+        blocksContainer.className = 'space-y-4 flex-1';
+
+        BLOCKS.forEach(block => {
+          const blockEl = document.createElement('div');
+          blockEl.className = 'bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 space-y-2';
+
+          blockEl.innerHTML = `
+            <div class="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+              <span><i class="fa-regular fa-clock mr-1 text-slate-400"></i>${block.name}</span>
+            </div>
+          `;
+
+          // Slot 1
+          const slot1El = createSlotElement(day, block.id, 'slot1', `1st Hour Work (${block.slot1})`);
+          blockEl.appendChild(slot1El);
+
+          // 10 Min Water Break Divider
+          const breakEl = document.createElement('div');
+          breakEl.className = 'flex items-center justify-center py-1 px-2 my-1 rounded-lg bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-100 dark:border-cyan-900/40 text-cyan-700 dark:text-cyan-300 text-[10px] font-semibold space-x-1.5';
+          breakEl.innerHTML = `
+            <i class="fa-solid fa-bottle-water text-cyan-500 animate-pulse"></i>
+            <span>💧 ${block.water}</span>
+          `;
+          blockEl.appendChild(breakEl);
+
+          // Slot 2
+          const slot2El = createSlotElement(day, block.id, 'slot2', `2nd 50m Work (${block.slot2})`);
+          blockEl.appendChild(slot2El);
+
+          blocksContainer.appendChild(blockEl);
+        });
+
+        dayCol.appendChild(blocksContainer);
+        grid.appendChild(dayCol);
+      });
+
+      updateStats();
+      setupDragAndDrop();
+    }
+
+    function createSlotElement(day, blockId, slotKey, slotLabel) {
+      const slotContainer = document.createElement('div');
+      slotContainer.className = 'space-y-1.5 drop-zone min-h-[36px] p-1.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 transition-colors';
+      slotContainer.dataset.day = day;
+      slotContainer.dataset.block = blockId;
+      slotContainer.dataset.slot = slotKey;
+
+      const slotHeader = document.createElement('div');
+      slotHeader.className = 'flex justify-between items-center text-[10px] text-slate-400 font-medium px-1';
+      slotHeader.innerHTML = `
+        <span>${slotLabel}</span>
+        <button onclick="openModal('${day}', '${blockId}', '${slotKey}')" class="text-indigo-500 hover:text-indigo-600 font-bold">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      `;
+      slotContainer.appendChild(slotHeader);
+
+      const tasks = scheduleData[day][blockId][slotKey] || [];
+      tasks.forEach((task, index) => {
+        if (activeFilter !== 'all' && task.priority !== activeFilter) return;
+
+        const taskCard = document.createElement('div');
+        taskCard.draggable = true;
+        taskCard.dataset.day = day;
+        taskCard.dataset.block = blockId;
+        taskCard.dataset.slot = slotKey;
+        taskCard.dataset.id = task.id;
+
+        const priorityBadge = getPriorityBadgeHtml(task.priority);
+        const completedStyle = task.completed ? 'line-through opacity-50 bg-slate-100 dark:bg-slate-800' : 'bg-white dark:bg-slate-800 shadow-sm';
+
+        taskCard.className = `task-card p-2 rounded-xl border border-slate-200 dark:border-slate-700 ${completedStyle} flex flex-col space-y-1.5 cursor-grab active:cursor-grabbing hover:border-indigo-300 dark:hover:border-indigo-600 transition`;
+
+        taskCard.innerHTML = `
+          <div class="flex items-start justify-between gap-1">
+            <div class="flex items-start space-x-2">
+              <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTaskDone('${day}', '${blockId}', '${slotKey}', '${task.id}')" class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+              <span class="text-xs font-medium leading-snug ${task.completed ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(task.title)}</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/50">
+            ${priorityBadge}
+            <div class="flex items-center space-x-1 text-[11px] text-slate-400">
+              <button onclick="openModal('${day}', '${blockId}', '${slotKey}', '${task.id}')" class="hover:text-indigo-500 p-0.5" title="Edit">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="deleteTask('${day}', '${blockId}', '${slotKey}', '${task.id}')" class="hover:text-rose-500 p-0.5" title="Delete">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        slotContainer.appendChild(taskCard);
+      });
+
+      return slotContainer;
+    }
+
+    function getPriorityBadgeHtml(priority) {
+      if (priority === 'vimp') {
+        return `<span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-300 flex items-center gap-1">🔥 V-Imp</span>`;
+      } else if (priority === 'imp') {
+        return `<span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-300 flex items-center gap-1">⚡ Imp</span>`;
+      }
+      return `<span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center gap-1">📌 Normal</span>`;
+    }
+
+    // Task Actions
+    function toggleTaskDone(day, blockId, slotKey, taskId) {
+      const task = scheduleData[day][blockId][slotKey].find(t => t.id === taskId);
+      if (task) {
+        task.completed = !task.completed;
+        saveToStorage();
+        renderSchedule();
+      }
+    }
+
+    function deleteTask(day, blockId, slotKey, taskId) {
+      scheduleData[day][blockId][slotKey] = scheduleData[day][blockId][slotKey].filter(t => t.id !== taskId);
+      saveToStorage();
+      renderSchedule();
+      showToast('Task removed', 'info');
+    }
+
+    function clearAllSchedule() {
+      if (confirm('Are you sure you want to clear all weekly tasks?')) {
+        initScheduleData();
+        saveToStorage();
+        renderSchedule();
+        showToast('Schedule cleared', 'info');
+      }
+    }
+
+    // Modal Control
+    function openModal(day, blockId, slotKey, taskId = null) {
+      document.getElementById('taskDayInput').value = day;
+      document.getElementById('taskBlockInput').value = blockId;
+      document.getElementById('taskSlotInput').value = slotKey;
+      document.getElementById('taskIdInput').value = taskId || '';
+
+      if (taskId) {
+        const task = scheduleData[day][blockId][slotKey].find(t => t.id === taskId);
+        if (task) {
+          document.getElementById('taskTitleInput').value = task.title;
+          document.getElementById('taskPriorityInput').value = task.priority;
+          document.getElementById('modalTitle').innerText = 'Edit Task';
+        }
+      } else {
+        document.getElementById('taskTitleInput').value = '';
+        document.getElementById('taskPriorityInput').value = 'normal';
+        document.getElementById('modalTitle').innerText = 'Add Task';
+      }
+
+      const modal = document.getElementById('taskModal');
+      const container = document.getElementById('modalContainer');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      container.classList.remove('scale-95');
+      container.classList.add('scale-100');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('taskModal');
+      const container = document.getElementById('modalContainer');
+      container.classList.remove('scale-100');
+      container.classList.add('scale-95');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function saveTaskForm(e) {
+      e.preventDefault();
+      const day = document.getElementById('taskDayInput').value;
+      const blockId = document.getElementById('taskBlockInput').value;
+      const slotKey = document.getElementById('taskSlotInput').value;
+      const taskId = document.getElementById('taskIdInput').value;
+      const title = document.getElementById('taskTitleInput').value.trim();
+      const priority = document.getElementById('taskPriorityInput').value;
+
+      if (!title) return;
+
+      if (taskId) {
+        // Edit existing
+        const task = scheduleData[day][blockId][slotKey].find(t => t.id === taskId);
+        if (task) {
+          task.title = title;
+          task.priority = priority;
+        }
+      } else {
+        // Add new
+        scheduleData[day][blockId][slotKey].push({
+          id: 'task_' + Date.now(),
+          title: title,
+          priority: priority,
+          completed: false
+        });
+      }
+
+      saveToStorage();
+      renderSchedule();
+      closeModal();
+      showToast(taskId ? 'Task updated' : 'Task added', 'success');
+    }
+
+    // Drag and Drop
+    let draggedTaskId = null;
+    let sourceLocation = null;
+
+    function setupDragAndDrop() {
+      const cards = document.querySelectorAll('.task-card');
+      const zones = document.querySelectorAll('.drop-zone');
+
+      cards.forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+          draggedTaskId = card.dataset.id;
+          sourceLocation = {
+            day: card.dataset.day,
+            block: card.dataset.block,
+            slot: card.dataset.slot
+          };
+          e.dataTransfer.effectAllowed = 'move';
+          card.classList.add('opacity-40');
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('opacity-40');
+        });
+      });
+
+      zones.forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          zone.classList.add('bg-indigo-50/50', 'dark:bg-indigo-950/30', 'border-indigo-400');
+        });
+
+        zone.addEventListener('dragleave', () => {
+          zone.classList.remove('bg-indigo-50/50', 'dark:bg-indigo-950/30', 'border-indigo-400');
+        });
+
+        zone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          zone.classList.remove('bg-indigo-50/50', 'dark:bg-indigo-950/30', 'border-indigo-400');
+
+          const targetDay = zone.dataset.day;
+          const targetBlock = zone.dataset.block;
+          const targetSlot = zone.dataset.slot;
+
+          if (draggedTaskId && sourceLocation) {
+            // Find task in source
+            const sourceArray = scheduleData[sourceLocation.day][sourceLocation.block][sourceLocation.slot];
+            const taskIdx = sourceArray.findIndex(t => t.id === draggedTaskId);
+
+            if (taskIdx > -1) {
+              const [taskObj] = sourceArray.splice(taskIdx, 1);
+              scheduleData[targetDay][targetBlock][targetSlot].push(taskObj);
+
+              saveToStorage();
+              renderSchedule();
+              showToast('Task moved successfully', 'info');
+            }
+          }
+        });
+      });
+    }
+
+    // Filtering & Statistics
+    function setPriorityFilter(filter) {
+      activeFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'dark:bg-slate-800', 'shadow-sm', 'text-indigo-600', 'dark:text-indigo-400');
+        btn.classList.add('text-slate-600', 'dark:text-slate-400');
+      });
+
+      const activeBtn = document.getElementById(`filter-${filter}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-white', 'dark:bg-slate-800', 'shadow-sm', 'text-indigo-600', 'dark:text-indigo-400');
+      }
+
+      renderSchedule();
+    }
+
+    function countDayTasks(day) {
+      let count = 0;
+      BLOCKS.forEach(block => {
+        count += (scheduleData[day][block.id].slot1 || []).length;
+        count += (scheduleData[day][block.id].slot2 || []).length;
+      });
+      return count;
+    }
+
+    function updateStats() {
+      let total = 0;
+      let done = 0;
+
+      DAYS.forEach(day => {
+        BLOCKS.forEach(block => {
+          ['slot1', 'slot2'].forEach(slot => {
+            const tasks = scheduleData[day][block.id][slot] || [];
+            total += tasks.length;
+            done += tasks.filter(t => t.completed).length;
+          });
+        });
+      });
+
+      document.getElementById('statTotal').innerText = total;
+      document.getElementById('statDone').innerText = done;
+    }
+
+    // Helper Tools
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const icon = document.getElementById('themeIcon');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        icon.className = 'fa-solid fa-moon';
+      } else {
+        html.classList.add('dark');
+        icon.className = 'fa-solid fa-sun text-amber-400';
+      }
+    }
+
+    function copySummaryToClipboard() {
+      let text = "WEEKLY PRIORITIZATION SUMMARY\n=============================\n\n";
+      DAYS.forEach(day => {
+        text += `[ ${day.toUpperCase()} ]\n`;
+        BLOCKS.forEach(block => {
+          const s1 = scheduleData[day][block.id].slot1.map(t => `${t.completed ? '[X]' : '[ ]'} ${t.title} (${t.priority})`).join('\n  ');
+          const s2 = scheduleData[day][block.id].slot2.map(t => `${t.completed ? '[X]' : '[ ]'} ${t.title} (${t.priority})`).join('\n  ');
+          
+          if (s1 || s2) {
+            text += `  • ${block.name}:\n`;
+            if (s1) text += `    Slot 1: ${s1}\n`;
+            text += `    💧 10m Water Break\n`;
+            if (s2) text += `    Slot 2: ${s2}\n`;
+          }
+        });
+        text += "\n";
+      });
+
+      // Execute copy
+      const tempArea = document.createElement("textarea");
+      tempArea.value = text;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempArea);
+
+      showToast('Weekly summary copied to clipboard!', 'success');
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(scheduleData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `weekly_focus_plan_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('Schedule exported as JSON', 'success');
+    }
+
+    function triggerImport() {
+      document.getElementById('importFileInput').click();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          scheduleData = imported;
+          saveToStorage();
+          renderSchedule();
+          showToast('Schedule imported successfully!', 'success');
+        } catch (err) {
+          showToast('Invalid JSON file.', 'warning');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function showToast(msg, type = 'info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastMsg.innerText = msg;
+      if (type === 'success') {
+        toastIcon.className = 'fa-solid fa-circle-check text-emerald-400';
+      } else if (type === 'warning') {
+        toastIcon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-info text-indigo-400';
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
